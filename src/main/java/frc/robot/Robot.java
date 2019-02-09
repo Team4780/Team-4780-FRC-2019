@@ -40,23 +40,20 @@ public class Robot extends TimedRobot {
   private static final String kAutoLineLeft = "Drive Straight - Turn Left";
 //
 
+
 // essential instatiation
   public static Compressor compressor;
-  public static DoubleSolenoid hatchDoubleSolenoid;
+  public static DoubleSolenoid hatchGrabberSolenoid;
+  public static DoubleSolenoid hatchGrabberDeploySolenoid;
   public static PowerDistributionPanel pdp;
 //
+
 
 // smartdashboard auto choices dropdown
   private String m_autoSelected;
   private final SendableChooser<String> m_chooser = new SendableChooser<>();
 // --end
 
-// gyro instantiation and angle setpoints/error margin
-
-//old gyro instantiation  
-private static final double kAngleSetpoint = 0.0;
-private static final double kP = 0.005; // propotional turning constant
-// --end
 
 //port instantiation
 private static final SPI.Port kGyroPort = SPI.Port.kOnboardCS0;
@@ -67,12 +64,12 @@ private static final int kJoystick2Port = 1;
 private static final int kElevatorPort = 2;
 private static final int kCargoIntakePort = 3;
 private static final int kHabClimbPort = 4;
-private static final int kHatchIntakePort = 5;
 // --end
 
+
 // new gyro instantiation 
-  int P, I, D = 1;
-// new gyro second attempt
+int P, I, D = 1;
+private static final double kP = 0.005; // propotional turning constant
 double angle;
 boolean turned = true;
 int mustTurnDegree = 0;
@@ -84,26 +81,29 @@ int mustTurnDegree = 0;
   int setpoint = 20; //attempting to set the setpoint as a different number to see if it turns to that angle or not
 // --end
 
+
 // drive victorsp's
   VictorSP leftVictorSP = new VictorSP(leftVictorPort);
   VictorSP rightVictorSP = new VictorSP(rightVictorPort);
 // --end
 
+
 //auxillary sparks
 Spark elevatorSpark = new Spark(kElevatorPort); //single - one controller
-Spark cargoIntakeSpark = new Spark(kCargoIntakePort); //double - two controllers - one sign
-Spark habClimbSpark = new Spark(kHabClimbPort); //double - two controllers - one sign
-Spark hatchIntakeSpark = new Spark(kHatchIntakePort); //single - one controller
+Spark cargoIntakeSpark = new Spark(kCargoIntakePort); //double - two controllers - one signal
+Spark habClimbSpark = new Spark(kHabClimbPort); //double - two controllers - one signal
 // --end
+
 
 //hall effect
 DigitalInput hallEffectSensorTop = new DigitalInput(0); // top sensor init
 DigitalInput hallEffectSensorBottom = new DigitalInput(1); // bottom sensor init
-DigitalInput rocketLowLevel = new DigitalInput(2); //rocket low level
-DigitalInput rocketMiddleLevel = new DigitalInput(3); //rocket middle level
-DigitalInput rocketHighLevel = new DigitalInput(4); //rocket high level
-DigitalInput cargoShipLevel = new DigitalInput(5); //cargo ship level
+DigitalInput rocketLowLevel = new DigitalInput(2); //rocket low level sensor init
+DigitalInput rocketMiddleLevel = new DigitalInput(3); //rocket middle level sensor init
+DigitalInput rocketHighLevel = new DigitalInput(4); //rocket high level sensor init
+DigitalInput cargoShipLevel = new DigitalInput(5); //cargo ship level sensor init
 // --end
+
 
 // drivetrain (with victorsp's)
 DifferentialDrive m_myRobot = new DifferentialDrive(leftVictorSP, rightVictorSP);
@@ -111,15 +111,19 @@ DifferentialDrive m_myRobot = new DifferentialDrive(leftVictorSP, rightVictorSP)
   private Joystick m_joystick = new Joystick(kJoystickPort);
 // --end
 
+
 //second joystick instantiation
 private Joystick m_joystick2 = new Joystick(kJoystick2Port);
 // --end
 
+
   @Override
   public void robotInit() {
   compressor = new Compressor(1);
-  hatchDoubleSolenoid = new DoubleSolenoid(4, 5);
+  hatchGrabberSolenoid = new DoubleSolenoid(4, 5);
+  hatchGrabberDeploySolenoid = new DoubleSolenoid(6, 7);
   m_joystick2 = new Joystick(1);
+
 
   // smartdashboard option adding  
     m_chooser.setDefaultOption("Drive Straight - Auto Line", kAutoLine);
@@ -128,9 +132,11 @@ private Joystick m_joystick2 = new Joystick(kJoystick2Port);
     SmartDashboard.putData("Auto choices", m_chooser);
   //   --end
 
+
   // gyro calibrate at robot turn on  
     m_gyro.calibrate();
   // --end
+
 
   // camera instatiation
   CameraServer camera = CameraServer.getInstance();
@@ -139,6 +145,7 @@ private Joystick m_joystick2 = new Joystick(kJoystick2Port);
   usbCam.setFPS(30);
   // --end
   }
+
 
   /**
    * This function is called every robot packet, no matter the mode. Use
@@ -153,7 +160,7 @@ private Joystick m_joystick2 = new Joystick(kJoystick2Port);
   // unsure whether functioning but supposed to put angle of gyro in smartdashboard
     SmartDashboard.putNumber("Gyro Angle", m_gyro.getAngle());
   // --end
-  }
+}
 
   /**
    * This autonomous (along with the chooser code above) shows how to select
@@ -220,42 +227,21 @@ private Joystick m_joystick2 = new Joystick(kJoystick2Port);
 
   @Override
   public void teleopPeriodic() {
-  
-
   //Clear ALL Sticky Faults from PDP and PCM 
   //  pdp.clearStickyFaults();
     compressor.clearAllPCMStickyFaults();
   // --end  
 
 
-  //Gyro (working as of 1/26/19)
-
-  /*
-    // adds the joystick y variable 
-    boolean joystickYaxis = m_joystick.getY() > 1 || m_joystick.getY() < -1;
-
-    if (joystickYaxis) {
-    double turningValue = (kAngleSetpoint - m_gyro.getAngle()) * kP;
-		// Invert the direction of the turn if we are going backwards
-    turningValue = Math.copySign(turningValue, m_joystick.getY());
-    m_myRobot.arcadeDrive(m_joystick.getY(), turningValue);
-    }
-    else{      
-      //allow normal robot control if not y axis is not changing
-      m_myRobot.arcadeDrive(m_joystick.getY(), m_joystick.getX());
-    }
-    // --end
-    */
-
-    //elevator y-axis backup control (working as of 1/26/19)
+  //elevator y-axis backup control (tested & working as of 1/26/19)
     elevatorSpark.set(m_joystick2.getY());
-    // --end
+  // --end
 
 
-    //hall effect for elevator (working as of 1/26/19)
+  //hall effect for elevator (tested & working as of 1/26/19)
     boolean upTriggered = hallEffectSensorTop.get() == false;
     boolean downTriggered = hallEffectSensorBottom.get() == false;		
-		double joystickYAxis = m_joystick2.getY();    
+	  double joystickYAxis = m_joystick2.getY();    
    
     if (joystickYAxis > 0 && upTriggered || joystickYAxis < 0 && downTriggered)
       {
@@ -269,32 +255,48 @@ private Joystick m_joystick2 = new Joystick(kJoystick2Port);
     // --end
 
 
-// Pneumatics (working as of 2/2/19)
-
+//Pneumatics (tested & working as of 2/2/19)
 compressor.setClosedLoopControl(false);
 
-  // if-else piston control statement (working as of 2/2/19)
-  if (m_joystick2.getRawButton(8)) {
-    hatchDoubleSolenoid.set(DoubleSolenoid.Value.kForward);
+//if-else piston control statement (tested & working as of 2/2/19)
+  if (m_joystick2.getRawButton(4)) {
+    hatchGrabberSolenoid.set(DoubleSolenoid.Value.kForward);
+  } 
+  else{  
+  }	
+
+  if (m_joystick2.getRawButton(3)) {
+    hatchGrabberSolenoid.set(DoubleSolenoid.Value.kReverse);
+  }
+  else{
+  }
+// --end
+
+
+//hatch grabber deploy outside of frame perimeter (written on 2/9/19, working as of N/A)
+  if (m_joystick2.getRawButton(9)) {
+    hatchGrabberDeploySolenoid.set(DoubleSolenoid.Value.kForward);
+    SmartDashboard.putString("DB/String 0", "Hatch Grabber Deployed");
   } 
   else{  
   }	
   
-  if (m_joystick2.getRawButton(7)) {
-    hatchDoubleSolenoid.set(DoubleSolenoid.Value.kReverse);
+  if (m_joystick2.getRawButton(10)) {
+    hatchGrabberDeploySolenoid.set(DoubleSolenoid.Value.kReverse);
+    SmartDashboard.putString("DB/String 0", "Hatch Grabber NOT Deployed");
   }
   else{
   }
-  // --end
+// --end
 
 
-  // pressure switch boolean's (working as of 1/26/19)
-  boolean pressureSwitchOn = compressor.getPressureSwitchValue() == true;
-  boolean pressureSwitchOff = compressor.getPressureSwitchValue() == false;
-  // --end
+// pressure switch boolean's (tested & working as of 1/26/19)
+boolean pressureSwitchOn = compressor.getPressureSwitchValue() == true;
+boolean pressureSwitchOff = compressor.getPressureSwitchValue() == false;
+// --end
 
 
-  // compressor pressure regulation (working as of 1/26/19)
+// compressor pressure regulation (tested & working as of 1/26/19)
   if(pressureSwitchOff) {
     compressor.enabled();
   }
@@ -304,6 +306,7 @@ compressor.setClosedLoopControl(false);
 // --end
 
 
+//NEW (and working 100%) Gyro Math (tested & working as of 2/9/19)
 m_myRobot.arcadeDrive(m_joystick.getY()*0.8, m_joystick.getX()*0.8);
 
 if(m_joystick.getRawButton(1))turned = true;
@@ -312,54 +315,60 @@ if(m_joystick.getPOV() != -1){
   mustTurnDegree = m_joystick.getPOV();
 }
 if(!turned)turnDegrees(mustTurnDegree);
+// --end
 
-//Basic Auxillary Functions (X for in and B for out)
+
+//Basic Auxillary Functions (X for in and B for out) (written on 2/9/19, working as of N/A)
 
 if (m_joystick.getRawButton(1)) {
-cargoIntakeSpark.set(0.5);  
+  cargoIntakeSpark.set(0.5);  
 }
-else if (m_joystick.getRawButton(3)){
-cargoIntakeSpark.set(-0.5);
+else if (m_joystick.getRawButton(2)){
+  cargoIntakeSpark.set(-0.5);
 }
 
-//Elevator Hall Levels (Y for up and A for down)
+
+//Elevator Hall Levels (Y for up and A for down) (written on 2/9/19, working as of N/A)
 boolean lowTriggered = rocketLowLevel.get() == false;
 boolean middleTriggered = rocketMiddleLevel.get() == false;
 boolean highTriggered = rocketHighLevel.get() == false;
 boolean cargoShipTriggered = cargoShipLevel.get() == false;
+// --end 
 
-//buttons to control elevator
-if (m_joystick2.getRawButton(4)) {
+//Buttons to control elevator (written on 2/9/19, working as of N/A)
+if (m_joystick2.getRawButton(8)) {
   elevatorSpark.set(0.5);
 }
-else if(m_joystick2.getRawButton(2)){
+else if(m_joystick2.getRawButton(6)){
   elevatorSpark.set(-0.5);
 }
+// --end
 
-//level stops
-if (m_joystick2.getRawButton(4) || m_joystick.getRawButton(2)) {}
-else if (m_joystick2.getRawButton(4) &&lowTriggered){ //req for cargo level
+
+//Rocket and Cargo Ship level stops (written on 2/9/19, working as of N/A)
+if (m_joystick2.getRawButton(8) || m_joystick.getRawButton(6)) {}
+else if (m_joystick2.getRawButton(8) &&lowTriggered){ //req for cargo level
 elevatorSpark.set(0);
 }
-else if (m_joystick2.getRawButton(4) &&middleTriggered){
+else if (m_joystick2.getRawButton(8) &&middleTriggered){
 elevatorSpark.set(0);
 }
-else if (m_joystick2.getRawButton(4) &&highTriggered){
+else if (m_joystick2.getRawButton(8) &&highTriggered){
 elevatorSpark.set(0);
 }
-else if (m_joystick2.getRawButton(4) &&cargoShipTriggered){
+else if (m_joystick2.getRawButton(8) &&cargoShipTriggered){
 elevatorSpark.set(0);
 }  
-else if (m_joystick2.getRawButton(2) &&lowTriggered){ //req for cargo level
+else if (m_joystick2.getRawButton(6) &&lowTriggered){ //req for cargo level
 elevatorSpark.set(0);
 }
-else if (m_joystick2.getRawButton(2) &&middleTriggered){
+else if (m_joystick2.getRawButton(6) &&middleTriggered){
 elevatorSpark.set(0);
 }
-else if (m_joystick2.getRawButton(2) &&highTriggered){
+else if (m_joystick2.getRawButton(6) &&highTriggered){
 elevatorSpark.set(0);
 }
-else if (m_joystick2.getRawButton(2) &&cargoShipTriggered){
+else if (m_joystick2.getRawButton(6) &&cargoShipTriggered){
 elevatorSpark.set(0);
 } 
 // --end
