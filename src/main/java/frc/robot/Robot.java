@@ -328,33 +328,43 @@ boolean middleTriggered = rocketMiddleLevel.get() == false;
 boolean highTriggered = rocketHighLevel.get() == false;
 boolean cargoShipTriggered = cargoShipLevel.get() == false;
 
+//buttons to control elevator
+if (m_joystick2.getRawButton(4)) {
+  elevatorSpark.set(0.5);
+}
+else if(m_joystick2.getRawButton(2)){
+  elevatorSpark.set(-0.5);
+}
+
+//level stops
 if (m_joystick2.getRawButton(4) || m_joystick.getRawButton(2)) {}
-else if (m_joystick2.getRawButton(4) && lowTriggered){
-
+else if (m_joystick2.getRawButton(4) &&lowTriggered){ //req for cargo level
+elevatorSpark.set(0);
 }
-else if (m_joystick2.getRawButton(4) && middleTriggered){
-
+else if (m_joystick2.getRawButton(4) &&middleTriggered){
+elevatorSpark.set(0);
 }
-else if (m_joystick2.getRawButton(4) && highTriggered){
-
+else if (m_joystick2.getRawButton(4) &&highTriggered){
+elevatorSpark.set(0);
 }
 else if (m_joystick2.getRawButton(4) &&cargoShipTriggered){
-
+elevatorSpark.set(0);
 }  
-else if (m_joystick2.getRawButton(2) && lowTriggered){
-
+else if (m_joystick2.getRawButton(2) &&lowTriggered){ //req for cargo level
+elevatorSpark.set(0);
 }
 else if (m_joystick2.getRawButton(2) &&middleTriggered){
-
+elevatorSpark.set(0);
 }
 else if (m_joystick2.getRawButton(2) &&highTriggered){
-
+elevatorSpark.set(0);
 }
 else if (m_joystick2.getRawButton(2) &&cargoShipTriggered){
-
+elevatorSpark.set(0);
 } 
 // --end
-  }
+}
+
 /**
    * This function is called periodically during test mode.
    */  
