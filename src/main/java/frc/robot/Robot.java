@@ -6,7 +6,7 @@
 /*----------------------------------------------------------------------------*/
 
 package frc.robot;
-
+import frc.robot.Gamepad;
 
 
 import edu.wpi.first.wpilibj.TimedRobot;
@@ -20,10 +20,11 @@ import edu.wpi.first.wpilibj.SPI;
 import edu.wpi.first.wpilibj.Compressor;
 import edu.wpi.first.wpilibj.CameraServer;
 import edu.wpi.first.wpilibj.VictorSP;
+import edu.wpi.first.wpilibj.Joystick.AxisType;
 import edu.wpi.first.wpilibj.Spark;
 import edu.wpi.first.wpilibj.DigitalInput;
-//import edu.wpi.first.wpilibj.Compressor;
 import edu.wpi.first.wpilibj.DoubleSolenoid;
+import edu.wpi.first.wpilibj.PowerDistributionPanel;
 
 /**
  * The VM is configured to automatically run this class, and to call the
@@ -41,7 +42,8 @@ public class Robot extends TimedRobot {
 
 // essential instatiation
   public static Compressor compressor;
-  public static DoubleSolenoid doubleSolenoid;
+  public static DoubleSolenoid hatchDoubleSolenoid;
+  public static PowerDistributionPanel pdp;
 //
 
 // smartdashboard auto choices dropdown
@@ -65,15 +67,21 @@ private static final int kJoystick2Port = 1;
 private static final int kElevatorPort = 2;
 private static final int kCargoIntakePort = 3;
 private static final int kHabClimbPort = 4;
-private static final int kHatchReleasePort = 5;
+private static final int kHatchIntakePort = 5;
 // --end
 
 // new gyro instantiation 
   int P, I, D = 1;
+// new gyro second attempt
+double angle;
+boolean turned = true;
+int mustTurnDegree = 0;
+// --end
+
 
 //int integral, previous_error, setpoint = 0;
   int integral, previous_error = 0;
-  int setpoint = 45; //attempting to set the setpoint as a different number to see if it turns to that angle or not
+  int setpoint = 20; //attempting to set the setpoint as a different number to see if it turns to that angle or not
 // --end
 
 // drive victorsp's
@@ -85,12 +93,16 @@ private static final int kHatchReleasePort = 5;
 Spark elevatorSpark = new Spark(kElevatorPort); //single - one controller
 Spark cargoIntakeSpark = new Spark(kCargoIntakePort); //double - two controllers - one sign
 Spark habClimbSpark = new Spark(kHabClimbPort); //double - two controllers - one sign
-Spark hatchReleaseSpark = new Spark(kHatchReleasePort); //single - one controller -- *tenative*
+Spark hatchIntakeSpark = new Spark(kHatchIntakePort); //single - one controller
 // --end
 
 //hall effect
-DigitalInput hallEffectSensorTop = new DigitalInput(0);
-DigitalInput hallEffectSensorBottom = new DigitalInput(1);
+DigitalInput hallEffectSensorTop = new DigitalInput(0); // top sensor init
+DigitalInput hallEffectSensorBottom = new DigitalInput(1); // bottom sensor init
+DigitalInput rocketLowLevel = new DigitalInput(2); //rocket low level
+DigitalInput rocketMiddleLevel = new DigitalInput(3); //rocket middle level
+DigitalInput rocketHighLevel = new DigitalInput(4); //rocket high level
+DigitalInput cargoShipLevel = new DigitalInput(5); //cargo ship level
 // --end
 
 // drivetrain (with victorsp's)
@@ -105,8 +117,8 @@ private Joystick m_joystick2 = new Joystick(kJoystick2Port);
 
   @Override
   public void robotInit() {
-  // compressor = new Compressor(1);
-  //  doubleSolenoid = new DoubleSolenoid(4, 5);
+  compressor = new Compressor(1);
+  hatchDoubleSolenoid = new DoubleSolenoid(4, 5);
   m_joystick2 = new Joystick(1);
 
   // smartdashboard option adding  
@@ -169,15 +181,24 @@ private Joystick m_joystick2 = new Joystick(kJoystick2Port);
     switch (m_autoSelected) {
       case kAutoLine:
       default:
-      //DO NOT USE UNTIL FIXED -- DRIVES FORWARDS AT FULL SPEED INFINITELY -- USE ONLY ON ROBOT CART AND BE EXTRA CAUTIOUS
+      /* NEW gyro angle setpoint testing (not working as of 2/2/19, doesnt move anywhere)
+      m_myRobot.setSafetyEnabled(false);
       double error = setpoint - m_gyro.getAngle(); // Error = Target - Actual
-      this.integral += (error*.02); // Integral is increased by the error*time (which is .02 seconds using normal IterativeRobot)
-      double derivative = (error - this.previous_error) / .02;
-      double finalangle = P * error + I * this.integral + D * derivative;
-      m_myRobot.arcadeDrive(0, finalangle);
+      angle = m_gyro.getAngle() % 360;
+      if(angle-20 > 0)m_myRobot.arcadeDrive(0.8, (angle - error)*kP);
+      else if(angle+20 < 0)m_myRobot.arcadeDrive(0.8, (angle + error)*kP);
+     // else m_myRobot.arcadeDrive(m_joystick.getY(), m_joystick.getX());    
+      //m_myRobot.arcadeDrive(0, 0);
+      --end */
       break;
       case kAutoLineRight:
       //code goes here
+            //DO NOT USE UNTIL FIXED -- DRIVES FORWARDS AT FULL SPEED INFINITELY -- USE ONLY ON ROBOT CART AND BE EXTRA CAUTIOUS
+            double error2 = setpoint - m_gyro.getAngle(); // Error = Target - Actual
+            this.integral += (error2*.02); // Integral is increased by the error*time (which is .02 seconds using normal IterativeRobot)
+            double derivative = (error2 - this.previous_error) / .02;
+            double finalangle = P * error2 + I * this.integral + D * derivative;
+            m_myRobot.arcadeDrive(0, finalangle);
         break;
       case kAutoLineLeft:
       //code goes here  
@@ -188,11 +209,28 @@ private Joystick m_joystick2 = new Joystick(kJoystick2Port);
   /**
    * This function is called periodically during operator control.
    */
+
+  public void turnDegrees(int degree) {
+    if(turned)return;
+    angle = m_gyro.getAngle() % 360;
+    if(angle-10 > degree)m_myRobot.arcadeDrive(0.8, (angle - degree)*kP);
+    else if(angle+10 < degree)m_myRobot.arcadeDrive(0.8, (angle + degree)*kP);
+    else turned = true;
+    }
+
   @Override
   public void teleopPeriodic() {
   
-  //Gyro Old (1/21/19)
 
+  //Clear ALL Sticky Faults from PDP and PCM 
+  //  pdp.clearStickyFaults();
+    compressor.clearAllPCMStickyFaults();
+  // --end  
+
+
+  //Gyro (working as of 1/26/19)
+
+  /*
     // adds the joystick y variable 
     boolean joystickYaxis = m_joystick.getY() > 1 || m_joystick.getY() < -1;
 
@@ -207,72 +245,119 @@ private Joystick m_joystick2 = new Joystick(kJoystick2Port);
       m_myRobot.arcadeDrive(m_joystick.getY(), m_joystick.getX());
     }
     // --end
-    
-    //elevator y-axis backup control
+    */
+
+    //elevator y-axis backup control (working as of 1/26/19)
     elevatorSpark.set(m_joystick2.getY());
     // --end
 
 
-
-    //hall effect for elevator
+    //hall effect for elevator (working as of 1/26/19)
     boolean upTriggered = hallEffectSensorTop.get() == false;
     boolean downTriggered = hallEffectSensorBottom.get() == false;		
 		double joystickYAxis = m_joystick2.getY();    
    
     if (joystickYAxis > 0 && upTriggered || joystickYAxis < 0 && downTriggered)
       {
-      	elevatorSpark.set(0);
+        elevatorSpark.set(0); 
+        
       }
     else
       {
       	elevatorSpark.set(m_joystick2.getY());
       }
     // --end
-//
-//
 
 
-// Pneumatics
+// Pneumatics (working as of 2/2/19)
 
 compressor.setClosedLoopControl(false);
-  
-  boolean whileHeld = m_joystick2.getRawButton(8);
 
-  // if-else piston control statement
-  if (whileHeld) {
-    doubleSolenoid.set(DoubleSolenoid.Value.kForward);
+  // if-else piston control statement (working as of 2/2/19)
+  if (m_joystick2.getRawButton(8)) {
+    hatchDoubleSolenoid.set(DoubleSolenoid.Value.kForward);
   } 
-  else{
-    doubleSolenoid.set(DoubleSolenoid.Value.kReverse);
+  else{  
   }	
   
   if (m_joystick2.getRawButton(7)) {
-    doubleSolenoid.set(DoubleSolenoid.Value.kOff);
+    hatchDoubleSolenoid.set(DoubleSolenoid.Value.kReverse);
   }
-  else {
-  
+  else{
   }
   // --end
 
-  // pressure switch boolean's
+
+  // pressure switch boolean's (working as of 1/26/19)
   boolean pressureSwitchOn = compressor.getPressureSwitchValue() == true;
   boolean pressureSwitchOff = compressor.getPressureSwitchValue() == false;
   // --end
 
-  // compressor pressure regulation
+
+  // compressor pressure regulation (working as of 1/26/19)
   if(pressureSwitchOff) {
     compressor.enabled();
   }
   else if (pressureSwitchOn) {
     compressor.setClosedLoopControl(true);
   }
-}
 // --end
-  
 
-  /**
+
+m_myRobot.arcadeDrive(m_joystick.getY()*0.8, m_joystick.getX()*0.8);
+
+if(m_joystick.getRawButton(1))turned = true;
+if(m_joystick.getPOV() != -1){
+  turned = false;
+  mustTurnDegree = m_joystick.getPOV();
+}
+if(!turned)turnDegrees(mustTurnDegree);
+
+//Basic Auxillary Functions (X for in and B for out)
+
+if (m_joystick.getRawButton(1)) {
+cargoIntakeSpark.set(0.5);  
+}
+else if (m_joystick.getRawButton(3)){
+cargoIntakeSpark.set(-0.5);
+}
+
+//Elevator Hall Levels (Y for up and A for down)
+boolean lowTriggered = rocketLowLevel.get() == false;
+boolean middleTriggered = rocketMiddleLevel.get() == false;
+boolean highTriggered = rocketHighLevel.get() == false;
+boolean cargoShipTriggered = cargoShipLevel.get() == false;
+
+if (m_joystick2.getRawButton(4) || m_joystick.getRawButton(2)) {}
+else if (m_joystick2.getRawButton(4) && lowTriggered){
+
+}
+else if (m_joystick2.getRawButton(4) && middleTriggered){
+
+}
+else if (m_joystick2.getRawButton(4) && highTriggered){
+
+}
+else if (m_joystick2.getRawButton(4) &&cargoShipTriggered){
+
+}  
+else if (m_joystick2.getRawButton(2) && lowTriggered){
+
+}
+else if (m_joystick2.getRawButton(2) &&middleTriggered){
+
+}
+else if (m_joystick2.getRawButton(2) &&highTriggered){
+
+}
+else if (m_joystick2.getRawButton(2) &&cargoShipTriggered){
+
+} 
+// --end
+  }
+/**
    * This function is called periodically during test mode.
-   */
+   */  
   @Override
   public void testPeriodic() {
   }
