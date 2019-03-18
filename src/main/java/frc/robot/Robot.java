@@ -18,13 +18,14 @@ import edu.wpi.first.wpilibj.drive.DifferentialDrive;
 import edu.wpi.first.wpilibj.ADXRS450_Gyro;
 import edu.wpi.first.wpilibj.SPI;
 import edu.wpi.first.wpilibj.Compressor;
-import edu.wpi.first.wpilibj.CameraServer;
+import edu.wpi.first.cameraserver.CameraServer;
 import edu.wpi.first.wpilibj.VictorSP;
-import edu.wpi.first.wpilibj.Joystick.AxisType;
 import edu.wpi.first.wpilibj.Spark;
 import edu.wpi.first.wpilibj.DigitalInput;
 import edu.wpi.first.wpilibj.DoubleSolenoid;
 import edu.wpi.first.wpilibj.PowerDistributionPanel;
+import edu.wpi.first.wpilibj.Encoder;
+import edu.wpi.cscore.VideoMode.PixelFormat;
 
 /**
  * The VM is configured to automatically run this class, and to call the
@@ -48,6 +49,9 @@ public class Robot extends TimedRobot {
   public static PowerDistributionPanel pdp;
 //
 
+//can error removal
+//LiveWindow.disableTelemetry(pdp);
+// --end
 
 // smartdashboard auto choices dropdown
   private String m_autoSelected;
@@ -98,10 +102,20 @@ Spark habClimbSpark = new Spark(kHabClimbPort); //double - two controllers - one
 //hall effect
 DigitalInput hallEffectSensorTop = new DigitalInput(0); // top sensor init
 DigitalInput hallEffectSensorBottom = new DigitalInput(1); // bottom sensor init
+/* 2/19/19
 DigitalInput rocketLowLevel = new DigitalInput(2); //rocket low level sensor init
 DigitalInput rocketMiddleLevel = new DigitalInput(3); //rocket middle level sensor init
 DigitalInput rocketHighLevel = new DigitalInput(4); //rocket high level sensor init
 DigitalInput cargoShipLevel = new DigitalInput(5); //cargo ship level sensor init
+*/
+// --end
+
+
+//Encoder Instantiation 2/22/19
+Encoder enc;
+//enc = new Encoder(0, 1, false, Encoder.EncodingType.k4X);
+//Below describes what each variable up here ^^^^ does
+//Encoder(leftChannelA, leftChannelB, reverseDirection, Encoder.EncodingType.k4X);
 // --end
 
 
@@ -115,7 +129,6 @@ DifferentialDrive m_myRobot = new DifferentialDrive(leftVictorSP, rightVictorSP)
 //second joystick instantiation
 private Joystick m_joystick2 = new Joystick(kJoystick2Port);
 // --end
-
 
   @Override
   public void robotInit() {
@@ -141,8 +154,7 @@ private Joystick m_joystick2 = new Joystick(kJoystick2Port);
   // camera instatiation
   CameraServer camera = CameraServer.getInstance();
   VideoSource usbCam = camera.startAutomaticCapture("cam0", 0);
-  usbCam.setResolution(320,240); 
-  usbCam.setFPS(30);
+  usbCam.setVideoMode(PixelFormat.kMJPEG, 640, 480, 30);
   // --end
   }
 
@@ -216,7 +228,6 @@ private Joystick m_joystick2 = new Joystick(kJoystick2Port);
   /**
    * This function is called periodically during operator control.
    */
-
   public void turnDegrees(int degree) {
     if(turned)return;
     angle = m_gyro.getAngle() % 360;
@@ -232,27 +243,22 @@ private Joystick m_joystick2 = new Joystick(kJoystick2Port);
     compressor.clearAllPCMStickyFaults();
   // --end  
 
-
-  //elevator y-axis backup control (tested & working as of 1/26/19)
-    elevatorSpark.set(m_joystick2.getY());
-  // --end
-
-
   //hall effect for elevator (tested & working as of 1/26/19)
-    boolean upTriggered = hallEffectSensorTop.get() == false;
+  /*  
+  boolean upTriggered = hallEffectSensorTop.get() == false;
     boolean downTriggered = hallEffectSensorBottom.get() == false;		
 	  double joystickYAxis = m_joystick2.getY();    
    
-    if (joystickYAxis > 0 && upTriggered || joystickYAxis < 0 && downTriggered)
+     if (joystickYAxis>0 && upTriggered || joystickYAxis<0 && downTriggered)
       {
         elevatorSpark.set(0); 
-        
       }
     else
       {
-      	elevatorSpark.set(m_joystick2.getY());
+        elevatorSpark.set(m_joystick2.getY());
       }
     // --end
+*/
 
 
 //Pneumatics (tested & working as of 2/2/19)
@@ -272,18 +278,21 @@ compressor.setClosedLoopControl(false);
   }
 // --end
 
+if (m_joystick.getY() < 0 || m_joystick.getY() > 0){
+  System.out.println(m_gyro.getAngle());
+}
 
 //hatch grabber deploy outside of frame perimeter (written on 2/9/19, working as of N/A)
   if (m_joystick2.getRawButton(9)) {
     hatchGrabberDeploySolenoid.set(DoubleSolenoid.Value.kForward);
-    SmartDashboard.putString("DB/String 0", "Hatch Grabber Deployed");
+    System.out.println("Hatch Grabber Deployed");
   } 
   else{  
   }	
   
   if (m_joystick2.getRawButton(10)) {
     hatchGrabberDeploySolenoid.set(DoubleSolenoid.Value.kReverse);
-    SmartDashboard.putString("DB/String 0", "Hatch Grabber NOT Deployed");
+    System.out.println("Hatch Grabber NOT Deployed");
   }
   else{
   }
@@ -318,7 +327,7 @@ if(!turned)turnDegrees(mustTurnDegree);
 // --end
 
 
-//Basic Auxillary Functions (X for in and B for out) (written on 2/9/19, working as of N/A)
+//Basic Auxillary Functions (X for in and A for out) (written on 2/9/19, working as of N/A)
 
 if (m_joystick.getRawButton(1)) {
   cargoIntakeSpark.set(0.5);  
@@ -327,24 +336,38 @@ else if (m_joystick.getRawButton(2)){
   cargoIntakeSpark.set(-0.5);
 }
 
-
-//Elevator Hall Levels (Y for up and A for down) (written on 2/9/19, working as of N/A)
+/* 2/19/19
+//Elevator Hall Levels (Right Side Bumper and Trigger for Up and Down) (written on 2/9/19, working as of N/A)
 boolean lowTriggered = rocketLowLevel.get() == false;
 boolean middleTriggered = rocketMiddleLevel.get() == false;
 boolean highTriggered = rocketHighLevel.get() == false;
 boolean cargoShipTriggered = cargoShipLevel.get() == false;
-// --end 
+// --end
+*/  
+ 
 
+/* 2/19/19
 //Buttons to control elevator (written on 2/9/19, working as of N/A)
-if (m_joystick2.getRawButton(8)) {
+if (joystickYAxis > 0 || joystickYAxis < 0) {
+  elevatorSpark.set(m_joystick2.getY());
+}
+else if (m_joystick2.getRawButton(6)) {
   elevatorSpark.set(0.5);
 }
-else if(m_joystick2.getRawButton(6)){
+else if(m_joystick2.getRawButton(8)){
   elevatorSpark.set(-0.5);
 }
 // --end
 
+if (m_joystick2.getRawButton(6) && upTriggered || m_joystick2.getRawButton(8) && downTriggered)
+{
+  elevatorSpark.set(0);
+}
+// --end
+*/
 
+
+/* 10:03:34 -- 2/19/19 -- test for button recheck
 //Rocket and Cargo Ship level stops (written on 2/9/19, working as of N/A)
 if (m_joystick2.getRawButton(8) || m_joystick.getRawButton(6)) {}
 else if (m_joystick2.getRawButton(8) &&lowTriggered){ //req for cargo level
@@ -372,6 +395,7 @@ else if (m_joystick2.getRawButton(6) &&cargoShipTriggered){
 elevatorSpark.set(0);
 } 
 // --end
+*/
 }
 
 /**
